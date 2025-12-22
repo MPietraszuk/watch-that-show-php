@@ -7,7 +7,7 @@ declare(strict_types=1);
  * - $pageTitle (string)
  * - $active (string): search | trending | popular
  */
-$pageTitle = $pageTitle ?? 'Watch Tht Show';
+$pageTitle = $pageTitle ?? 'Watch That Show';
 $active = $active ?? '';
 
 function nav_active(string $key, string $active): string
