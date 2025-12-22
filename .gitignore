@@ -1,0 +1,33 @@
+.env
+cache/*.json
+
+# Ignore all files ending in .log anywhere in the repository.
+*.log
+
+# Ignore all files in the 'logs' directory only in the root directory.
+/logs/
+
+# Ignore the 'temp' directory and all its contents anywhere in the repository.
+**/temp/
+
+# Ignore a specific file named 'config.local.json' anywhere.
+config.local.json
+
+# Ignore all files with the .tmp extension.
+*.tmp
+
+# Ignore macOS system files.
+.DS_Store
+
+# Ignore specific IDE/editor configuration directories.
+.idea/
+.vscode/
+
+# Ignore dependency directories for common languages
+# Node.js
+node_modules/
+# Python (virtual environments)
+.venv/
+
+# Negate a pattern to re-include a specific file that was otherwise ignored.
+!important.log
