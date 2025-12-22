@@ -1,4 +1,4 @@
-# Movie DB (TMDB API) — Vanilla PHP
+# Watch That Show (TMDB API) — Vanilla PHP
 
 A lightweight movie browser built with vanilla PHP, CSS, and JavaScript.
 No framework. No database. Designed to demonstrate clean structure, secure API integration,
