@@ -34,7 +34,7 @@ if ($q !== '') {
 /**
  * Page metadata for header include
  */
-$pageTitle = 'Movie DB • Search';
+$pageTitle = 'Watch That Show • Search';
 $active = 'search';
 
 view('header', compact('pageTitle', 'active'));

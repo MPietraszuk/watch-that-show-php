@@ -137,12 +137,33 @@ if (is_array($videos)) {
         <h2 class="section-title">Top Cast</h2>
         <ul class="cast">
           <?php foreach ($cast as $p): ?>
-            <li>
-              <div class="cast-name"><?= e((string)($p['name'] ?? '')) ?></div>
-              <div class="subtle"><?= e((string)($p['character'] ?? '')) ?></div>
+            <?php
+            $name = (string)($p['name'] ?? '');
+            $character = (string)($p['character'] ?? '');
+            $profileUrl = tmdb_profile_url($p['profile_path'] ?? null);
+            ?>
+            <li class="cast-card">
+              <div class="cast-photo">
+                <?php if ($profileUrl): ?>
+                  <img
+                    loading="lazy"
+                    src="<?= e($profileUrl) ?>"
+                    alt="<?= e($name) ?>">
+                <?php else: ?>
+                  <div class="cast-photo-fallback">No Image</div>
+                <?php endif; ?>
+              </div>
+
+              <div class="cast-info">
+                <div class="cast-name"><?= e($name) ?></div>
+                <?php if ($character): ?>
+                  <div class="cast-character"><?= e($character) ?></div>
+                <?php endif; ?>
+              </div>
             </li>
           <?php endforeach; ?>
         </ul>
+
       <?php endif; ?>
     </section>
   </div>

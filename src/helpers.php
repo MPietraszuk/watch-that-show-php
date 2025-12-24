@@ -35,3 +35,8 @@ if (!function_exists('year_from_date')) {
     return substr($date, 0, 4);
   }
 }
+
+function tmdb_profile_url(?string $path): string
+{
+  return $path ? 'https://image.tmdb.org/t/p/w185' . $path : '';
+}
