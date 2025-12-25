@@ -1,36 +1,139 @@
-# Watch That Show (TMDB API) — Vanilla PHP
+# 🎬 Watch That Show
 
-A lightweight movie browser built with vanilla PHP, CSS, and JavaScript.
-No framework. No database. Designed to demonstrate clean structure, secure API integration,
-and production-style organization.
+**Watch That Show** is a vanilla PHP movie search and discovery application powered by the **TMDB (The Movie Database) API**.  
+The project emphasizes clean architecture, progressive enhancement, and real-world development practices — without relying on a PHP framework.
 
-## Features
+---
 
-- Search movies via TMDB
-- Movie details page (synopsis, genres, top cast, trailer link)
-- Trending movies (today / week)
-- Popular movies with pagination
-- File-based caching to reduce API calls
+## 📌 Project Goals
 
-## Tech
+- Build a fully functional movie database app using **plain PHP**
+- Integrate a real-world third-party API (TMDB)
+- Demonstrate clean separation of concerns
+- Implement progressive enhancement (works with and without JavaScript)
+- Avoid scope creep while still delivering a polished UX
 
-- PHP (no framework)
-- TMDB API
-- CSS (custom)
-- JavaScript (minimal)
+---
 
-## Project Structure
+## ✨ Features
 
-- `public/` is the web root (pages + static assets)
-- `src/` contains application logic (config, API client, helpers)
-- `cache/` stores cached JSON responses (gitignored)
+### 🔍 Movie Search
 
-## Setup
+- Server-side search using PHP (fallback / non-JS)
+- Client-side **live search** with debouncing
+- Abortable fetch requests
+- Protection against stale responses
+- Results dynamically update without page reloads
 
-1. Copy `.env.example` → `.env`
-2. Add your `TMDB_API_KEY`
-3. Run locally:
+### 🧠 Fuzzy Search Ranking
+
+- Client-side result re-ranking using:
+  - Token overlap
+  - Prefix & substring matching
+  - Levenshtein distance (typo tolerance)
+  - Weighted scoring
+- Improves relevance over TMDB’s default ordering
+
+### 🎥 Movie Details
+
+- Movie poster and metadata
+- Release year, runtime, rating
+- Overview and tagline
+- Cast list with actor headshots
+- Efficient API usage via `append_to_response=credits`
+
+### 🧑‍🎤 Actor / Person Pages
+
+- Actor profile image
+- Biography and birthplace
+- Complete filmography
+- Movies sorted by release date
+- Seamless navigation back to movie pages
+
+### ⚡ Performance & Stability
+
+- File-based API caching with TTL
+- Reduced API calls
+- Faster page loads
+- TMDB rate-limit friendly
+
+---
+
+## 🏗️ Architecture Overview
+
+watch-that-show-php/
+├── public/
+│ ├── index.php # Search page
+│ ├── movie.php # Movie details
+│ ├── person.php # Actor details
+│ └── js/
+│ └── app.js # Live search + fuzzy ranking
+│
+├── src/
+│ ├── bootstrap.php # App initialization
+│ ├── tmdb.php # TMDB service layer
+│ ├── helpers.php # Generic helper functions
+│ ├── config.php # App configuration
+│ └── views/
+│ ├── header.php
+│ └── footer.php
+│
+├── cache/
+│ └── tmdb/ # Cached API responses
+│
+├── .env.example
+└── README.md
+
+---
+
+## 🧱 Key Design Decisions
+
+### ✅ Vanilla PHP (No Framework)
+
+- Full control over execution flow
+- Transparent logic (no hidden framework magic)
+- Demonstrates core PHP skills
+
+### ✅ Central Bootstrap
+
+`src/bootstrap.php` handles:
+
+- Environment loading
+- Dependency wiring
+- Global helpers and services
+
+This mirrors professional PHP architectures (Laravel-style bootstrapping).
+
+### ✅ Environment Variables (`.env`)
+
+- API keys stored securely
+- No secrets committed to source control
+- Easy local vs production configuration
+
+### ✅ Dedicated TMDB Service Layer
+
+All TMDB logic lives in `src/tmdb.php`:
+
+- API calls
+- Image URL helpers
+- Caching
+- Error handling
+
+This avoids duplicated logic and keeps responsibilities clear.
+
+### ✅ Progressive Enhancement
+
+- PHP renders initial results
+- JavaScript enhances UX
+- App works even if JS is disabled
+
+---
+
+## 🔐 Setup Instructions
+
+### 1. Clone the repository
 
 ```bash
-php -S localhost:8000 -t public
+git clone https://github.com/your-username/watch-that-show-php.git
+cd watch-that-show-php
 ```
