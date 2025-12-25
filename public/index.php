@@ -6,7 +6,8 @@ require_once __DIR__ . '/../src/bootstrap.php';
 
 /**
  * Server-side (non-JS) search
- * JS will enhance this with live search
+ * - Used for initial page load
+ * - Used if JS is disabled
  */
 $q = trim((string)($_GET['q'] ?? ''));
 $page = (int)($_GET['page'] ?? 1);
@@ -31,9 +32,6 @@ if ($q !== '') {
   }
 }
 
-/**
- * Page metadata for header include
- */
 $pageTitle = 'Watch That Show • Search';
 $active = 'search';
 
@@ -55,7 +53,7 @@ view('header', compact('pageTitle', 'active'));
     <button type="submit">Search</button>
   </form>
 
-  <!-- Status line (PHP renders initial state, JS updates later) -->
+  <!-- Status line (PHP renders initial state; JS updates it later) -->
   <div id="liveStatus" class="subtle" style="min-height:18px;">
     <?php if ($q === ''): ?>
       Start typing to search.
@@ -69,7 +67,7 @@ view('header', compact('pageTitle', 'active'));
     <div class="alert">Error: <?= e($error) ?></div>
   <?php endif; ?>
 
-  <!-- IMPORTANT: exactly ONE resultsGrid -->
+  <!-- Results grid (JS replaces ONLY this div) -->
   <div id="resultsGrid" class="grid">
 
     <?php if ($q !== '' && empty($results) && $error === ''): ?>
@@ -86,10 +84,7 @@ view('header', compact('pageTitle', 'active'));
       <a class="card" href="movie.php?id=<?= $id ?>">
         <div class="poster">
           <?php if ($posterUrl): ?>
-            <img
-              loading="lazy"
-              src="<?= e($posterUrl) ?>"
-              alt="<?= e($title) ?> poster">
+            <img loading="lazy" src="<?= e($posterUrl) ?>" alt="<?= e($title) ?> poster">
           <?php else: ?>
             <div class="poster-fallback">No Image</div>
           <?php endif; ?>
@@ -103,7 +98,7 @@ view('header', compact('pageTitle', 'active'));
 
   </div>
 
-  <!-- Pagination (only for non-JS search submits) -->
+  <!-- Pagination (non-JS fallback only) -->
   <?php if ($q !== '' && $totalPages > 1): ?>
     <div class="section-title"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
@@ -111,21 +106,9 @@ view('header', compact('pageTitle', 'active'));
       $prev = max(1, $page - 1);
       $next = min($totalPages, $page + 1);
       ?>
-      <a
-        class="btn <?= $page <= 1 ? 'disabled' : '' ?>"
-        href="index.php?q=<?= urlencode($q) ?>&page=<?= $prev ?>">
-        ← Prev
-      </a>
-
-      <span class="subtle">
-        Page <?= $page ?> of <?= $totalPages ?>
-      </span>
-
-      <a
-        class="btn <?= $page >= $totalPages ? 'disabled' : '' ?>"
-        href="index.php?q=<?= urlencode($q) ?>&page=<?= $next ?>">
-        Next →
-      </a>
+      <a class="btn <?= $page <= 1 ? 'disabled' : '' ?>" href="index.php?q=<?= urlencode($q) ?>&page=<?= $prev ?>">← Prev</a>
+      <span class="subtle">Page <?= $page ?> of <?= $totalPages ?></span>
+      <a class="btn <?= $page >= $totalPages ? 'disabled' : '' ?>" href="index.php?q=<?= urlencode($q) ?>&page=<?= $next ?>">Next →</a>
     </div>
   <?php endif; ?>
 

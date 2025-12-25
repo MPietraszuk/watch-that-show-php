@@ -2,85 +2,89 @@
 
 declare(strict_types=1);
 
-/**
- * Basic TMDB GET request with:
- * - API key injection
- * - caching
- * - error handling
- */
-if (!function_exists('tmdb_get')) {
-  function tmdb_get(string $path, array $query = [], int $cacheTtlSeconds = 900): array
-  {
-    $baseQuery = [
-      'api_key'  => tmdb_api_key(),
-      'language' => tmdb_language(),
-    ];
+const TMDB_BASE = 'https://api.themoviedb.org/3';
+const TMDB_IMG  = 'https://image.tmdb.org/t/p/';
 
-    // Only include region if present (keeps requests cleaner)
-    $region = tmdb_region();
-    if ($region !== '') {
-      $baseQuery['region'] = $region;
-    }
-
-    $query = array_merge($query, $baseQuery);
-
-    // Ensure consistent cache keys by sorting query params
-    ksort($query);
-
-    $url = rtrim(TMDB_BASE_URL, '/') . '/' . ltrim($path, '/');
-    $url .= '?' . http_build_query($query);
-
-    // Cache
-    $cached = cache_get($url, $cacheTtlSeconds);
-    if (is_array($cached)) return $cached;
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-      CURLOPT_RETURNTRANSFER => true,
-      CURLOPT_FOLLOWLOCATION => true,
-      CURLOPT_TIMEOUT => 10,
-      CURLOPT_CONNECTTIMEOUT => 5,
-      CURLOPT_HTTPHEADER => [
-        'Accept: application/json',
-        'User-Agent: MovieDB-VanillaPHP/1.0',
-      ],
-    ]);
-
-    $raw = curl_exec($ch);
-    if ($raw === false) {
-      $err = curl_error($ch);
-      curl_close($ch);
-      throw new RuntimeException("TMDB request failed: {$err}");
-    }
-
-    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $data = json_decode($raw, true);
-    if (!is_array($data)) {
-      throw new RuntimeException("TMDB returned invalid JSON (HTTP {$status}).");
-    }
-
-    if ($status < 200 || $status >= 300) {
-      $msg = $data['status_message'] ?? 'Unknown TMDB error';
-      throw new RuntimeException("TMDB error (HTTP {$status}): {$msg}");
-    }
-
-    cache_set($url, $data);
-    return $data;
+function tmdb_api_key(): string
+{
+  // .env is loaded in bootstrap.php via load_env(...)
+  $key = $_ENV['TMDB_API_KEY'] ?? getenv('TMDB_API_KEY');
+  if (!$key) {
+    throw new RuntimeException('TMDB_API_KEY not set. Add it to .env');
   }
+  return $key;
 }
 
-if (!function_exists('tmdb_poster_url')) {
-  function tmdb_poster_url(?string $posterPath): string
-  {
-    return $posterPath ? (TMDB_IMG_W500 . $posterPath) : '';
+function tmdb_cache_dir(): string
+{
+  // Prefer a writable directory OUTSIDE src
+  $dir = dirname(__DIR__) . '/cache/tmdb';
+  if (!is_dir($dir)) {
+    @mkdir($dir, 0777, true);
   }
+  return $dir;
 }
 
-if (!function_exists('tmdb_backdrop_url')) {
-  function tmdb_backdrop_url(?string $backdropPath): string
-  {
-    return $backdropPath ? (TMDB_IMG_W1280 . $backdropPath) : '';
+function tmdb_get(string $path, array $params = [], int $ttlSeconds = 0): array
+{
+  $params = array_merge([
+    'api_key'  => tmdb_api_key(),
+    'language' => 'en-US',
+  ], $params);
+
+  $url = TMDB_BASE . $path . '?' . http_build_query($params);
+
+  // Optional file cache
+  $cacheFile = '';
+  if ($ttlSeconds > 0) {
+    $cacheFile = tmdb_cache_dir() . '/' . sha1($url) . '.json';
+    if (is_file($cacheFile) && (time() - filemtime($cacheFile) < $ttlSeconds)) {
+      $cached = json_decode((string)file_get_contents($cacheFile), true);
+      if (is_array($cached)) return $cached;
+    }
   }
+
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 10,
+  ]);
+
+  $raw  = curl_exec($ch);
+  $err  = curl_error($ch);
+  $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+
+  if ($raw === false) {
+    return ['error' => 'Request failed', 'detail' => $err];
+  }
+  if ($code < 200 || $code >= 300) {
+    return ['error' => 'TMDB error', 'status' => $code, 'body' => $raw];
+  }
+
+  $data = json_decode($raw, true);
+  if (!is_array($data)) {
+    return ['error' => 'Invalid JSON from TMDB'];
+  }
+
+  if ($ttlSeconds > 0 && $cacheFile) {
+    @file_put_contents($cacheFile, json_encode($data));
+  }
+
+  return $data;
+}
+
+function tmdb_img(?string $path, string $size = 'w342'): string
+{
+  return $path ? TMDB_IMG . $size . $path : '';
+}
+
+function tmdb_poster_url(?string $posterPath, string $size = 'w342'): string
+{
+  return tmdb_img($posterPath, $size);
+}
+
+function tmdb_profile_url(?string $profilePath, string $size = 'w185'): string
+{
+  return tmdb_img($profilePath, $size);
 }

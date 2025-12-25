@@ -1,3 +1,5 @@
+// public/js/app.js
+
 document.addEventListener("DOMContentLoaded", () => {
   const input = document.querySelector("#q");
   const grid = document.querySelector("#resultsGrid");
@@ -7,6 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let timer = null;
   let controller = null;
+
+  // ✅ NEW: protect against stale responses overwriting newer UI
+  let lastRequestId = 0;
 
   const escapeHtml = (s) =>
     String(s ?? "")
@@ -58,11 +63,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------
 
   function normalize(str) {
-    // lowercase, remove accents, keep alphanumerics/spaces
     return String(str ?? "")
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // diacritics
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9\s]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -73,7 +77,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return n ? n.split(" ") : [];
   }
 
-  // Levenshtein distance (small + safe for short strings)
   function levenshtein(a, b) {
     a = normalize(a);
     b = normalize(b);
@@ -82,7 +85,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (alen === 0) return blen;
     if (blen === 0) return alen;
 
-    // Use two rows to save memory
     const prev = new Array(blen + 1);
     const curr = new Array(blen + 1);
 
@@ -93,11 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const ca = a.charCodeAt(i - 1);
       for (let j = 1; j <= blen; j++) {
         const cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
-        curr[j] = Math.min(
-          prev[j] + 1, // deletion
-          curr[j - 1] + 1, // insertion
-          prev[j - 1] + cost // substitution
-        );
+        curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
       }
       for (let j = 0; j <= blen; j++) prev[j] = curr[j];
     }
@@ -111,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const maxLen = Math.max(na.length, nb.length);
     if (maxLen === 0) return 1;
     const dist = levenshtein(na, nb);
-    return 1 - dist / maxLen; // 0..1
+    return 1 - dist / maxLen;
   }
 
   function fuzzyScore(query, title) {
@@ -120,12 +118,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!q || !t) return 0;
 
-    // Strong boosts
     if (t === q) return 100;
     if (t.startsWith(q)) return 90;
     if (t.includes(q)) return 75;
 
-    // Token overlap boosts (good for multi-word queries)
     const qt = tokens(q);
     const tt = tokens(t);
     let overlap = 0;
@@ -133,23 +129,16 @@ document.addEventListener("DOMContentLoaded", () => {
     for (const tok of qt) {
       if (ttSet.has(tok)) overlap++;
     }
-    const overlapRatio = qt.length ? overlap / qt.length : 0; // 0..1
+    const overlapRatio = qt.length ? overlap / qt.length : 0;
 
-    // Typo tolerance via similarity
-    // Compare query to full title and also to best-matching title token
-    const fullSim = similarity(q, t); // 0..1
+    const fullSim = similarity(q, t);
     let bestTokenSim = 0;
     for (const tok of tt) {
-      // don’t overwork the CPU on very long titles
       if (tok.length < 2) continue;
       const s = similarity(q, tok);
       if (s > bestTokenSim) bestTokenSim = s;
     }
 
-    // Weighted score (tuned for “feels right”)
-    // - overlap helps multi-word partials
-    // - fullSim helps typos
-    // - bestTokenSim helps single-word typos
     return overlapRatio * 40 + fullSim * 45 + bestTokenSim * 15;
   }
 
@@ -160,10 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .map((m) => {
         const title = m.title || "";
         const score = fuzzyScore(q, title);
-
-        // Light boost for higher-rated items if fuzzy score ties
         const rating = Number(m.vote_average ?? 0);
-
         return { ...m, _fuzzy: score, _rating: rating };
       })
       .sort((a, b) => {
@@ -177,7 +163,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Live search
   // ---------------------------
 
-  async function liveSearch(q) {
+  async function liveSearch(rawQ) {
+    const q = String(rawQ ?? "").trim();
+    const requestId = ++lastRequestId;
+
     if (controller) controller.abort();
     controller = new AbortController();
 
@@ -194,6 +183,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const data = await res.json().catch(() => ({}));
 
+      // ✅ Ignore stale responses
+      if (requestId !== lastRequestId) return;
+
       if (!res.ok) {
         console.error("API error:", data);
         status.textContent = data?.error
@@ -205,10 +197,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const reranked = rerankResults(q, data.results || []);
 
-      status.textContent = `Showing results for “${data.query}”`;
+      // ✅ Use current query, not data.query (prevents weird resets)
+      status.textContent = `Showing results for “${q}”`;
       renderResults(reranked);
     } catch (err) {
       if (err.name === "AbortError") return;
+
+      // ✅ Ignore stale errors too
+      if (requestId !== lastRequestId) return;
+
       console.error("Fetch failed:", err);
       status.textContent = "Network error.";
       renderMessage("Network error.");
@@ -216,11 +213,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   input.addEventListener("input", () => {
-    const q = input.value.trim();
+    // ✅ Don’t trim here (typing spaces shouldn’t feel like “disappearing”)
+    const q = input.value;
     clearTimeout(timer);
 
-    if (q.length < 2) {
-      status.textContent = "Type at least 2 characters…";
+    if (q.trim().length < 2) {
+      status.textContent =
+        q.trim().length === 0
+          ? "Start typing to search."
+          : "Type at least 2 characters…";
       if (controller) controller.abort();
       grid.innerHTML = "";
       return;
@@ -229,5 +230,34 @@ document.addEventListener("DOMContentLoaded", () => {
     timer = setTimeout(() => liveSearch(q), 250);
   });
 
+  // Prevent Enter from triggering a full page navigation when JS is active
+  const form = input.closest("form");
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const q = input.value;
+      if (q.trim().length >= 2) liveSearch(q);
+    });
+  }
+
   // No initial message here; PHP renders initial status.
+});
+
+// Show more cast
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.querySelector("#toggleCast");
+  if (!btn) return;
+
+  const hiddenItems = Array.from(
+    document.querySelectorAll(".cast-card.is-hidden")
+  );
+  if (hiddenItems.length === 0) return;
+
+  let expanded = false;
+
+  btn.addEventListener("click", () => {
+    expanded = !expanded;
+    hiddenItems.forEach((li) => li.classList.toggle("is-hidden", !expanded));
+    btn.textContent = expanded ? "Show less cast" : "Show more cast";
+  });
 });
