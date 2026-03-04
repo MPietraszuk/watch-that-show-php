@@ -35,7 +35,8 @@ function nav_active(string $key, string $active): string
         <nav class="links">
           <a class="<?= nav_active('search', $active) ?>" href="index.php">Search</a>
           <a class="<?= nav_active('trending', $active) ?>" href="trending.php">Trending</a>
-          <a class="<?= nav_active('popular', $active) ?>" href="popular.php">Popular</a>
+          <a class="<?= nav_active('popular', $active) ?>" href="popular.php">Movies</a>
+          <a href="tv.php" class="<?= ($active ?? '') === 'tv' ? 'active' : '' ?>">TV Shows</a>
         </nav>
       </div>
       <p class="subtle">Vanilla PHP • TMDB API • No database</p>
