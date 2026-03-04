@@ -20,6 +20,9 @@ $error = '';
 $movie = [];
 $cast  = [];
 
+$videos = [];
+$trailerKey = null;
+
 try {
   $movie = tmdb_get("/movie/{$id}", [
     'append_to_response' => 'credits',
@@ -27,8 +30,33 @@ try {
   ], 300);
 
   $cast = $movie['credits']['cast'] ?? [];
+
+  // ✅ Trailer / videos
+  $videos = tmdb_get("/movie/{$id}/videos", [], 300);
+
+  if (!empty($videos['results'])) {
+    foreach ($videos['results'] as $video) {
+      if (($video['type'] ?? '') === 'Trailer' && ($video['site'] ?? '') === 'YouTube') {
+        $trailerKey = (string)$video['key'];
+        break;
+      }
+    }
+  }
 } catch (Throwable $e) {
   $error = $e->getMessage();
+}
+
+if (!empty($videos['results'])) {
+  foreach ($videos['results'] as $video) {
+
+    $type = $video['type'] ?? '';
+    $site = $video['site'] ?? '';
+
+    if ($site === 'YouTube' && in_array($type, ['Trailer', 'Teaser', 'Clip'], true)) {
+      $trailerKey = $video['key'];
+      break;
+    }
+  }
 }
 
 $title = (string)($movie['title'] ?? 'Untitled');
@@ -73,7 +101,6 @@ view('header', compact('pageTitle', 'active'));
       <?php else: ?>
         <p class="subtle">No overview available.</p>
       <?php endif; ?>
-
       <div class="subtle" style="margin-top:12px;">
         <?php if (!empty($movie['release_date'])): ?>
           <div><strong>Release:</strong> <?= e((string)$movie['release_date']) ?></div>
@@ -83,6 +110,26 @@ view('header', compact('pageTitle', 'active'));
         <?php endif; ?>
         <?php if (!empty($movie['vote_average'])): ?>
           <div><strong>Rating:</strong> <?= e((string)$movie['vote_average']) ?> / 10</div>
+        <?php endif; ?>
+        <?php if ($trailerKey): ?>
+          <div class="trailer">
+            <h3>Watch Trailer</h3>
+            <?php if ($trailerKey): ?>
+              <div class="trailer" style="margin:14px 0;">
+                <div class="section-title">Trailer</div>
+
+                <div class="video-wrap">
+                  <iframe
+                    src="https://www.youtube.com/embed/<?= e($trailerKey) ?>"
+                    title="YouTube trailer"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowfullscreen>
+                  </iframe>
+                </div>
+              </div>
+            <?php endif; ?>
+          </div>
         <?php endif; ?>
       </div>
     </div>
