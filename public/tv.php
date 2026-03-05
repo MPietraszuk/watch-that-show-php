@@ -11,12 +11,16 @@ $error = '';
 $results = [];
 
 try {
+  $page = (int)($_GET['page'] ?? 1);
+  $page = max(1, min($page, 500));
+
   $data = tmdb_get('/tv/popular', [
     'language' => 'en-US',
-    'page' => 1,
+    'page' => $page,
   ], 300);
 
   $results = $data['results'] ?? [];
+  $totalPages = (int)($data['total_pages'] ?? 0);
 } catch (Throwable $e) {
   $error = $e->getMessage();
 }
@@ -59,7 +63,17 @@ view('header', compact('pageTitle', 'active'));
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
-
+  <?php if (!empty($results) && ($totalPages ?? 0) > 1): ?>
+    <?php
+    $prev = max(1, $page - 1);
+    $next = min($totalPages, $page + 1);
+    ?>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;">
+      <a class="btn <?= $page <= 1 ? 'disabled' : '' ?>" href="tv.php?page=<?= $prev ?>">← Prev</a>
+      <span class="subtle">Page <?= (int)$page ?> of <?= (int)$totalPages ?></span>
+      <a class="btn <?= $page >= $totalPages ? 'disabled' : '' ?>" href="tv.php?page=<?= $next ?>">Next →</a>
+    </div>
+  <?php endif; ?>
 </main>
 
 <?php view('footer'); ?>
