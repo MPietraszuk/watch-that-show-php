@@ -3,64 +3,88 @@
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
-// For live search, avoid browser caching; server-side cache handles it.
-header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-header('Pragma: no-cache');
 
 require_once __DIR__ . '/../../src/bootstrap.php';
 
 $q = trim((string)($_GET['q'] ?? ''));
-$page = (int)($_GET['page'] ?? 1);
-$page = max(1, min($page, 5)); // keep small for typeahead
 
-$flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
-
-// Basic guardrails
-if ($q === '' || mb_strlen($q) < 2) {
+if ($q === '' || strlen($q) < 2) {
   echo json_encode([
-    'query' => $q,
-    'page' => $page,
-    'results' => [],
-    'total_pages' => 0,
-    'total_results' => 0,
-  ], $flags);
-  exit;
-}
-
-// simple guard
-if (mb_strlen($q) > 80) {
-  http_response_code(400);
-  echo json_encode(['error' => 'Query too long.'], $flags);
+    'results' => []
+  ]);
   exit;
 }
 
 try {
-  $data = tmdb_get('/search/movie', [
+
+  $data = tmdb_get('/search/multi', [
     'query' => $q,
     'include_adult' => 'false',
-    'page' => $page,
-  ], 60); // short server cache TTL
+    'language' => 'en-US',
+    'page' => 1,
+  ], 60);
 
   $results = $data['results'] ?? [];
+  $out = [];
 
-  $out = array_map(static function (array $m): array {
-    return [
-      'id' => (int)($m['id'] ?? 0),
-      'title' => (string)($m['title'] ?? ''),
-      'release_date' => (string)($m['release_date'] ?? ''),
-      'poster_path' => $m['poster_path'] ?? null,
-      'vote_average' => $m['vote_average'] ?? null,
-    ];
-  }, is_array($results) ? $results : []);
+  foreach ($results as $item) {
+
+    $type = $item['media_type'] ?? '';
+
+    if ($type === 'movie') {
+      $out[] = [
+        'id' => $item['id'] ?? 0,
+        'media_type' => 'movie',
+        'title' => $item['title'] ?? 'Untitled',
+        'date' => $item['release_date'] ?? '',
+        'poster_path' => $item['poster_path'] ?? null,
+      ];
+    }
+
+    if ($type === 'tv') {
+      $out[] = [
+        'id' => $item['id'] ?? 0,
+        'media_type' => 'tv',
+        'title' => $item['name'] ?? 'Untitled',
+        'date' => $item['first_air_date'] ?? '',
+        'poster_path' => $item['poster_path'] ?? null,
+      ];
+    }
+
+    if ($type === 'person') {
+
+      $knownFor = [];
+      if (!empty($item['known_for']) && is_array($item['known_for'])) {
+        foreach ($item['known_for'] as $kf) {
+          $kType = $kf['media_type'] ?? '';
+          if ($kType === 'movie') $knownFor[] = $kf['title'] ?? '';
+          if ($kType === 'tv') $knownFor[] = $kf['name'] ?? '';
+          if (count($knownFor) >= 3) break;
+        }
+      }
+
+      // remove empty strings
+      $knownFor = array_values(array_filter($knownFor, fn($s) => (string)$s !== ''));
+
+      $out[] = [
+        'id' => $item['id'] ?? 0,
+        'media_type' => 'person',
+        'title' => $item['name'] ?? 'Unknown',
+        'date' => '',
+        'poster_path' => $item['profile_path'] ?? null,
+        'known_for' => $knownFor,
+      ];
+    }
+  }
 
   echo json_encode([
-    'query' => $q,
-    'page' => $page,
-    'results' => $out,
-    'total_pages' => (int)($data['total_pages'] ?? 0),
-    'total_results' => (int)($data['total_results'] ?? 0),
-  ], $flags);
+    'results' => $out
+  ]);
 } catch (Throwable $e) {
-  http_response_code(502);
-  echo json_encode(['error' => $e->getMessage()], $flags);
+
+  http_response_code(500);
+
+  echo json_encode([
+    'error' => $e->getMessage()
+  ]);
 }

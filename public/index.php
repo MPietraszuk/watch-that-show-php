@@ -16,17 +16,28 @@ $page = max(1, min($page, 500));
 $results = [];
 $totalPages = 0;
 $error = '';
+$movieResults = [];
+$tvResults = [];
+$personResults = [];
+$totalPages = 0;
 
 if ($q !== '') {
   try {
-    $data = tmdb_get('/search/movie', [
+    $data = tmdb_get('/search/multi', [
       'query' => $q,
       'include_adult' => 'false',
+      'language' => 'en-US',
       'page' => $page,
     ], 300);
 
     $results = $data['results'] ?? [];
     $totalPages = (int)($data['total_pages'] ?? 0);
+
+    // Keep only movie/tv/person (TMDB can sometimes return other types)
+    $results = array_values(array_filter($results, static function ($item) {
+      $t = $item['media_type'] ?? '';
+      return $t === 'movie' || $t === 'tv' || $t === 'person';
+    }));
   } catch (Throwable $e) {
     $error = $e->getMessage();
   }
@@ -42,12 +53,12 @@ view('header', compact('pageTitle', 'active'));
 
   <!-- Search form -->
   <form class="search" method="get" action="index.php" novalidate>
-    <label class="sr-only" for="q">Search movies</label>
+    <label class="sr-only" for="q">Search movies, TV shows, or people</label>
     <input
       id="q"
       name="q"
       type="search"
-      placeholder="Search for a movie…"
+      placeholder="Search for a movie, TV show, or person…"
       value="<?= e($q) ?>"
       autocomplete="off">
     <button type="submit">Search</button>
@@ -76,22 +87,45 @@ view('header', compact('pageTitle', 'active'));
 
     <?php foreach ($results as $m): ?>
       <?php
+      $type = (string)($m['media_type'] ?? '');
       $id = (int)($m['id'] ?? 0);
-      $title = (string)($m['title'] ?? 'Untitled');
-      $year = year_from_date((string)($m['release_date'] ?? ''));
-      $posterUrl = tmdb_poster_url($m['poster_path'] ?? null);
+
+      // Title + Date fields differ by type
+      if ($type === 'tv') {
+        $title = (string)($m['name'] ?? 'Untitled');
+        $date = (string)($m['first_air_date'] ?? '');
+        $href = "tvshow.php?id={$id}";
+        $posterUrl = tmdb_poster_url($m['poster_path'] ?? null);
+        $badge = 'TV';
+      } elseif ($type === 'person') {
+        $title = (string)($m['name'] ?? 'Unknown');
+        $date = '';
+        $href = "person.php?id={$id}";
+        $posterUrl = tmdb_profile_url($m['profile_path'] ?? null, 'w185');
+        $badge = 'Person';
+      } else { // movie
+        $title = (string)($m['title'] ?? 'Untitled');
+        $date = (string)($m['release_date'] ?? '');
+        $href = "movie.php?id={$id}";
+        $posterUrl = tmdb_poster_url($m['poster_path'] ?? null);
+        $badge = 'Movie';
+      }
+
+      $year = $type === 'person' ? '' : year_from_date($date);
       ?>
-      <a class="card" href="movie.php?id=<?= $id ?>">
+      <a class="card" href="<?= e($href) ?>">
         <div class="poster">
           <?php if ($posterUrl): ?>
-            <img loading="lazy" src="<?= e($posterUrl) ?>" alt="<?= e($title) ?> poster">
+            <img loading="lazy" src="<?= e($posterUrl) ?>" alt="<?= e($title) ?>">
           <?php else: ?>
             <div class="poster-fallback">No Image</div>
           <?php endif; ?>
         </div>
         <div class="card-body">
           <div class="title"><?= e($title) ?></div>
-          <div class="meta"><?= $year ? e($year) : '—' ?></div>
+          <div class="meta">
+            <?= $year ? e($year) . ' • ' : '' ?><?= e($badge) ?>
+          </div>
         </div>
       </a>
     <?php endforeach; ?>

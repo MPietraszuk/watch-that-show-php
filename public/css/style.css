@@ -255,3 +255,8 @@ aside .poster{border-radius:14px;border:1px solid var(--line);overflow:hidden}
   height: 100%;
   border: 0;
 }
+
+.card-body .meta + .meta{
+  opacity: .85;
+  font-size: 0.9em;
+}

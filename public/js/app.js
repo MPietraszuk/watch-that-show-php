@@ -37,23 +37,42 @@ document.addEventListener("DOMContentLoaded", () => {
     grid.innerHTML = items
       .map((m) => {
         const id = Number(m.id);
+        const type = (m.media_type || "movie").toLowerCase();
+
         const title = escapeHtml(m.title || "Untitled");
-        const year = (m.release_date || "").slice(0, 4);
+        const year = (m.date || "").slice(0, 4);
+
         const poster = posterUrl(m.poster_path);
 
         const posterHtml = poster
-          ? `<img loading="lazy" src="${poster}" alt="${title} poster">`
+          ? `<img loading="lazy" src="${poster}" alt="${title}">`
           : `<div class="poster-fallback">No Image</div>`;
 
+        const href =
+          type === "tv"
+            ? `tvshow.php?id=${id}`
+            : type === "person"
+              ? `person.php?id=${id}`
+              : `movie.php?id=${id}`;
+
+        const badge =
+          type === "tv" ? "TV" : type === "person" ? "Person" : "Movie";
+
+        const knownFor =
+          type === "person" && Array.isArray(m.known_for) && m.known_for.length
+            ? `<div class="meta">${escapeHtml(m.known_for.join(" • "))}</div>`
+            : "";
+
         return `
-          <a class="card" href="movie.php?id=${id}">
-            <div class="poster">${posterHtml}</div>
-            <div class="card-body">
-              <div class="title">${title}</div>
-              <div class="meta">${year ? escapeHtml(year) : "—"}</div>
-            </div>
-          </a>
-        `;
+        <a class="card" href="${href}">
+          <div class="poster">${posterHtml}</div>
+          <div class="card-body">
+            <div class="title">${title}</div>
+            <div class="meta">${year ? escapeHtml(year) + " • " : ""}${badge}</div>
+            ${knownFor}
+          </div>
+        </a>
+      `;
       })
       .join("");
   }
@@ -249,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!btn) return;
 
   const hiddenItems = Array.from(
-    document.querySelectorAll(".cast-card.is-hidden")
+    document.querySelectorAll(".cast-card.is-hidden"),
   );
   if (hiddenItems.length === 0) return;
 
